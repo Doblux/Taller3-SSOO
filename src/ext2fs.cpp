@@ -284,16 +284,19 @@ struct Ext2FSInode * Ext2FS::load_inode(unsigned int inode_number)
 
 	unsigned int inode_table = block_group(block_group_index)->inode_table;
 
-	unsigned int lba = inode_table + (inode_index * _superblock->inode_size) / 1024;
+	//calculamos donde empieza el bloque donde esta nuestro inodo (el inode_index lo queremos pasar a cantidad de bloques como la inode_table)r
+	unsigned int lba = inode_table + (inode_index * _superblock->inode_size) / 1024; 	
 
-	unsigned int offset = (inode_index * _superblock->inode_size) % 1024;
+	//calculamos el offset especifico donde empieza el inodo dentro del bloque (puede que no empiece al principio del bloque)
+	unsigned int offset = (inode_index * _superblock->inode_size) % 1024;		
 
 	Ext2FSInode* inodo_nuevo = new Ext2FSInode;
 
 	// metemos el bloque en el buffer
 	unsigned char* buffer = new unsigned char[1024];
-	read_block(lba, buffer);
-
+	// leo el bloque entero
+	read_block(lba, buffer);		
+	// copio solamente la parte del inodo que me interesa
 	memcpy(inodo_nuevo, buffer + offset, _superblock->inode_size);
 
 	delete[] buffer;
@@ -303,8 +306,44 @@ struct Ext2FSInode * Ext2FS::load_inode(unsigned int inode_number)
 
 unsigned int Ext2FS::get_block_address(struct Ext2FSInode * inode, unsigned int block_number)
 {
-
 	//TODO: Ejercicio 2
+	
+	// Bloques directos
+	if (block_number < 12) {
+        return inode->block[block_number]; 
+    }
+
+	// Bloques indirectos simples
+    unsigned int * indirect_block = new unsigned int[1024 / sizeof(unsigned int)];
+	unsigned int punteros_por_bloque = (12 + 1024 / sizeof(unsigned int));
+
+    if (block_number < punteros_por_bloque) {
+        // Leer el bloque indirecto
+        read_block(inode->block[12], (unsigned char *)indirect_block);
+        unsigned int block_address = indirect_block[block_number - 12];
+        delete[] indirect_block;
+        return block_address;
+    } 
+	// if (block_number < punteros_por_bloque * 2) {
+	// 	read_block(inode->block[13], (unsigned char *)indirect_block);
+    //     unsigned int block_address = indirect_block[block_number - 12];
+    //     delete[] indirect_block;
+    //     return block_address;
+	// } 
+	
+	// Bloques indirectos dobles
+	unsigned int *double_indirect_block = new unsigned int[punteros_por_bloque];
+
+	if (block_number < (12 + punteros_por_bloque * 2 + punteros_por_bloque * punteros_por_bloque)) {
+		// Leer bloque doble indirecto
+		read_block(inode->block[14], (unsigned char *)double_indirect_block);
+		// Leer el bloque indirecto
+		read_block(double_indirect_block[block_number / (1024 / sizeof(unsigned int) )], (unsigned char *)indirect_block);
+
+        unsigned int block_address = indirect_block[block_number % (1024 / sizeof(unsigned int))];
+        delete[] indirect_block;
+        return block_address;		
+	}
 
 }
 
