@@ -388,6 +388,29 @@ struct Ext2FSInode *Ext2FS::get_file_inode_from_dir_inode(struct Ext2FSInode *fr
 	assert(INODE_ISDIR(from));
 
 	// TODO: Ejercicio 3
+	unsigned int block_size = 1024 << _superblock->log_block_size;
+	unsigned char *buffer = new unsigned char[block_size];
+
+	for (unsigned int i = 0; i < from->blocks; i++) {
+		unsigned int block_address = get_block_address(from, i);
+		read_block(block_address, buffer);
+
+		unsigned int offset = 0;
+        while (offset < block_size) {
+            struct Ext2FSDirEntry * dir_entry = (struct Ext2FSDirEntry *) (buffer + offset);
+
+            // Comparar el nombre del archivo con la entrada del directorio
+            if (strncmp(dir_entry->name, filename, dir_entry->name_length) == 0 && strlen(filename) == dir_entry->name_length) {
+                struct Ext2FSInode * file_inode = load_inode(dir_entry->inode);
+                delete[] buffer;
+                return file_inode;
+            }
+
+            offset += dir_entry->record_length;
+        }
+	}
+	delete[] buffer;
+    return NULL;
 }
 
 fd_t Ext2FS::get_free_fd()
