@@ -386,7 +386,6 @@ struct Ext2FSInode *Ext2FS::get_file_inode_from_dir_inode(struct Ext2FSInode *fr
 		from = load_inode(EXT2_RDIR_INODE_NUMBER);
 	// std::cerr << *from << std::endl;
 	assert(INODE_ISDIR(from));
-
 	// TODO: Ejercicio 3
 	unsigned int block_size = 1024 << _superblock->log_block_size;
 	unsigned char *buffer = new unsigned char[block_size];
@@ -398,9 +397,14 @@ struct Ext2FSInode *Ext2FS::get_file_inode_from_dir_inode(struct Ext2FSInode *fr
 		unsigned int offset = 0;
         while (offset < block_size) {
             struct Ext2FSDirEntry * dir_entry = (struct Ext2FSDirEntry *) (buffer + offset);
+			
+			// Salir si me voy a pasar de block_size o record_length es inválido
+			if (offset + dir_entry->record_length > block_size || dir_entry->record_length <= 0 ) {
+                break; 
+            }
 
             // Comparar el nombre del archivo con la entrada del directorio
-            if (strncmp(dir_entry->name, filename, dir_entry->name_length) == 0 && strlen(filename) == dir_entry->name_length) {
+            if (dir_entry->inode != 0 && strncmp(dir_entry->name, filename, dir_entry->name_length) == 0 && strlen(filename) == dir_entry->name_length) {
                 struct Ext2FSInode * file_inode = load_inode(dir_entry->inode);
                 delete[] buffer;
                 return file_inode;
@@ -445,7 +449,7 @@ fd_t Ext2FS::open(const char *path, const char *mode)
 
 	// We ignore mode
 	struct Ext2FSInode *inode = inode_for_path(path);
-	assert(inode != NULL);
+	//assert(inode != NULL);
 	std::cerr << *inode << std::endl;
 
 	if (inode == NULL)
