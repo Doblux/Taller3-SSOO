@@ -389,32 +389,72 @@ struct Ext2FSInode *Ext2FS::get_file_inode_from_dir_inode(struct Ext2FSInode *fr
 	// TODO: Ejercicio 3
 	unsigned int block_size = 1024 << _superblock->log_block_size;
 	unsigned char *buffer = new unsigned char[block_size];
+	unsigned char *buffer2 = new unsigned char[2 * block_size];
 
-	for (unsigned int i = 0; i < from->blocks; i++) {
+	for (unsigned int i = 0; i < from->blocks; i++)
+	{
 		unsigned int block_address = get_block_address(from, i);
 		read_block(block_address, buffer);
 
 		unsigned int offset = 0;
-        while (offset < block_size) {
-            struct Ext2FSDirEntry * dir_entry = (struct Ext2FSDirEntry *) (buffer + offset);
-			
+		while (offset < block_size)
+		{
+			struct Ext2FSDirEntry *dir_entry = (struct Ext2FSDirEntry *)(buffer + offset);
+
 			// Salir si me voy a pasar de block_size o record_length es inválido
-			if (offset + dir_entry->record_length > block_size || dir_entry->record_length <= 0 ) {
-                break; 
-            }
+			if (offset + dir_entry->record_length > block_size || dir_entry->record_length <= 0)
+			{
+				break;
+			}
 
-            // Comparar el nombre del archivo con la entrada del directorio
-            if (dir_entry->inode != 0 && strncmp(dir_entry->name, filename, dir_entry->name_length) == 0 && strlen(filename) == dir_entry->name_length) {
-                struct Ext2FSInode * file_inode = load_inode(dir_entry->inode);
-                delete[] buffer;
-                return file_inode;
-            }
+			// Comparar el nombre del archivo con la entrada del directorio
+			if (dir_entry->inode != 0 && strncmp(dir_entry->name, filename, dir_entry->name_length) == 0 && strlen(filename) == dir_entry->name_length)
+			{
+				struct Ext2FSInode *file_inode = load_inode(dir_entry->inode);
+				delete[] buffer2;
+				delete[] buffer;
+				return file_inode;
+			}
 
-            offset += dir_entry->record_length;
-        }
+			if (offset + dir_entry->record_length == block_size && i + 1 < from->blocks)
+			{
+				// La entrada está dividida en dos bloques
+				unsigned int block_address2 = get_block_address(from, i + 1);
+				read_block(block_address2, buffer2);
+				// aca tenemos los 2 bloques.  ahora los unimos
+				// hago el shift hacia la derecha de 1 bloque
+				memmove(buffer2 + block_size, buffer2, block_size);
+				//  copio el primer bloque
+				memcpy(buffer2, buffer, block_size);
+				// ahora busco el dir_entry correspondiente a este nuevo buffer2
+				offset = 0;
+				while (offset < 2 * block_size)
+				{
+					struct Ext2FSDirEntry *dir_entry2 = (struct Ext2FSDirEntry *)buffer2;
+
+					if (offset + dir_entry2->record_length > block_size || dir_entry2->record_length <= 0)
+					{
+						break;
+					}
+
+					// Comparar el nombre del archivo con la entrada del directorio
+					if (dir_entry2->inode != 0 && strncmp(dir_entry2->name, filename, dir_entry2->name_length) == 0 && strlen(filename) == dir_entry2->name_length)
+					{
+						struct Ext2FSInode *file_inode = load_inode(dir_entry2->inode);
+						delete[] buffer2;
+						delete[] buffer;
+						return file_inode;
+					}
+					offset += dir_entry2->record_length;
+				}
+				break;
+			}
+			offset += dir_entry->record_length; // Salir del primer bucle ya que hemos leído el siguiente bloque
+		}
 	}
+	delete[] buffer2;
 	delete[] buffer;
-    return NULL;
+	return NULL;
 }
 
 fd_t Ext2FS::get_free_fd()
@@ -449,7 +489,7 @@ fd_t Ext2FS::open(const char *path, const char *mode)
 
 	// We ignore mode
 	struct Ext2FSInode *inode = inode_for_path(path);
-	//assert(inode != NULL);
+	// assert(inode != NULL);
 	std::cerr << *inode << std::endl;
 
 	if (inode == NULL)

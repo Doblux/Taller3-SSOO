@@ -5,6 +5,7 @@ all: testhdd
 
 testhdd: testhdd.o ../src/hdd.o ../src/mbr.o ../src/pentry.o ../src/ext2fs.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	unxz hdd.raw.xz
 
 testhdd.o: testhdd.cpp
 	$(CC) $(CFLAGS) $(LDFLAGS) -c $^ -o $@
@@ -15,3 +16,5 @@ testhdd.o: testhdd.cpp
 clean:
 	rm -rf *.o
 	rm -rf testhdd
+	rm -rf ../src/*.o
+	xz hdd.raw
